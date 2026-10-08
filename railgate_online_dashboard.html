@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NextGen RailGate HQ</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:20px;background:#020617;color:#f8fafc;font:15px Segoe UI,Arial,sans-serif}
+main{max-width:900px;margin:auto}.card{background:#0f172acc;border:1px solid #334155;border-radius:22px;padding:20px;margin:14px 0}
+h1{margin:0;font-size:25px}h2{font-size:17px}.row,.controls,.grid{display:grid;gap:12px}.row,.controls{grid-template-columns:1fr 1fr}.grid{grid-template-columns:repeat(4,1fr)}
+label{display:block;color:#94a3b8;font-size:12px;margin:10px 0 5px}input{width:100%;padding:11px;border-radius:9px;border:1px solid #475569;background:#020617;color:white}
+button{border:0;border-radius:11px;padding:13px;color:white;font-weight:800;cursor:pointer}.connect{background:#2563eb;width:100%;margin-top:14px}.open{background:#059669}.close{background:#dc2626}.auto{background:#334155;width:100%;margin-top:12px}
+.badge{float:right;padding:7px 11px;border-radius:20px;background:#7f1d1d;font-size:11px;font-weight:bold}.ok{background:#065f46}
+.status{text-align:center;background:#064e3b;padding:22px;border-radius:17px}.danger{background:#7f1d1d}.big{font-size:28px;font-weight:900}
+.sensor{background:#020617;padding:15px;border-radius:14px;text-align:center}.sensor small{color:#64748b;font-weight:bold;font-size:10px}.sensor b{display:block;margin-top:7px}
+.note{color:#94a3b8;font-size:12px;line-height:1.5;margin-top:9px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #1e293b;font-size:13px}th{color:#64748b;font-size:10px}
+@media(max-width:650px){.row,.controls,.grid{grid-template-columns:1fr 1fr}.row,.controls{grid-template-columns:1fr}}
+</style></head>
+<body><main>
+<div class="card"><span id="badge" class="badge">DISCONNECTED</span><h1>✨ NextGen RailGate HQ</h1><div class="note">Online MQTT control & live monitoring</div></div>
+
+<div class="card"><h2>☁️ EMQX Cloud</h2>
+<div class="row"><div><label>Broker</label><input id="broker" value="tf191af7.ala.dedicated.aws.emqxcloud.com"></div>
+<div><label>WSS Port</label><input id="port" value="8084"></div></div>
+<div class="row"><div><label>Username</label><input id="user" value="Rail-Gate"></div>
+<div><label>Password</label><input id="pass" type="password" placeholder="Your EMQX password"></div></div>
+<button class="connect" onclick="connect()">CONNECT TO LIVE SERVER</button><div id="msg" class="note"></div></div>
+
+<div class="card"><div id="status" class="status"><div>SYSTEM STATUS</div><div id="sys" class="big">WAITING</div><div id="gate" class="note">Gate: —</div></div>
+<div class="grid" style="margin-top:14px">
+<div class="sensor"><small>US DISTANCE</small><b id="dist">—</b></div><div class="sensor"><small>LDR</small><b id="ldr">—</b></div>
+<div class="sensor"><small>VIBRATION</small><b id="vib">—</b></div><div class="sensor"><small>SOUND</small><b id="snd">—</b></div>
+<div class="sensor"><small>TOTAL TRAINS</small><b id="trains">—</b></div><div class="sensor"><small>MODE</small><b id="mode">—</b></div>
+<div class="sensor"><small>ESP32</small><b id="online">—</b></div><div class="sensor"><small>UPDATED</small><b id="updated">—</b></div>
+</div></div>
+
+<div class="card"><h2>🎛️ Remote Gate Control</h2><div class="controls">
+<button class="close" onclick="send('CLOSE')">🛑 FORCE CLOSE</button><button class="open" onclick="send('OPEN')">🟢 FORCE OPEN</button></div>
+<button class="auto" onclick="send('AUTO')">🔵 RESUME AUTO (SENSORS)</button>
+<div class="note">Commands are published to <b>railgate/cmd</b>.</div></div>
+
+<div class="card"><h2>📜 Live Event Logs</h2><table><thead><tr><th>TIME</th><th>ACTIVITY</th></tr></thead><tbody id="logs"><tr><td colspan="2">Waiting for ESP32...</td></tr></tbody></table></div>
+</main>
+<script>
+let c=null;
+const STATUS="railgate/status",CMD="railgate/cmd",ONLINE="railgate/online";
+const $=id=>document.getElementById(id);
+function badge(t,ok){$("badge").textContent=t;$("badge").className="badge"+(ok?" ok":"")}
+function connect(){
+ if(c)try{c.end(true)}catch(e){}
+ const host=$("broker").value.trim(),port=$("port").value.trim(),u=$("user").value.trim(),p=$("pass").value;
+ if(!host||!port||!u||!p){$("msg").textContent="Enter all connection fields.";return}
+ badge("CONNECTING...",false);$("msg").textContent="Connecting...";
+ c=mqtt.connect(`wss://${host}:${port}/mqtt`,{username:u,password:p,clientId:"railgate-web-"+Math.random().toString(16).slice(2),reconnectPeriod:3000,connectTimeout:10000});
+ c.on("connect",()=>{badge("LIVE CONNECTED",true);$("msg").textContent="Connected to EMQX Cloud.";c.subscribe(STATUS,{qos:1});c.subscribe(ONLINE,{qos:1})});
+ c.on("reconnect",()=>badge("RECONNECTING...",false));c.on("offline",()=>badge("OFFLINE",false));
+ c.on("error",e=>{$("msg").textContent="MQTT error: "+e.message});
+ c.on("message",(topic,payload)=>{
+  const m=payload.toString();
+  if(topic===ONLINE){$("online").textContent=m==="1"?"ONLINE":"OFFLINE";return}
+  if(topic===STATUS)try{update(JSON.parse(m))}catch(e){}
+ });
+}
+function update(d){
+ $("dist").textContent=(d.s_dist??"—")+" cm";$("ldr").textContent=d.s_ldr??"—";
+ $("vib").textContent=d.s_vib==1?"HIGH":"LOW";$("snd").textContent=d.s_snd==1?"HIGH":"LOW";
+ $("trains").textContent=d.total_trains??"0";$("mode").textContent=d.manual??"—";$("updated").textContent=new Date().toLocaleTimeString();
+ const danger=d.manual==="CLOSE"||(d.manual==="AUTO"&&d.status==="DANGER");$("status").className="status"+(danger?" danger":"");
+ if(d.manual==="CLOSE"){$("sys").textContent="🛑 MANUAL CLOSED";$("gate").textContent="Gate: CLOSED"}
+ else if(d.manual==="OPEN"){$("sys").textContent="🟢 MANUAL OPENED";$("gate").textContent="Gate: OPEN"}
+ else if(d.status==="DANGER"){$("sys").textContent="⚠️ TRAIN IS COMING";$("gate").textContent="Gate: CLOSED (AUTO)"}
+ else{$("sys").textContent="✅ TRACK IS CLEAR";$("gate").textContent="Gate: OPEN (AUTO)"}
+ if(Array.isArray(d.logs))$("logs").innerHTML=d.logs.filter(x=>x.act).map(x=>`<tr><td>${esc(x.time)}</td><td>${esc(x.act)}</td></tr>`).join("")||"<tr><td colspan=2>No events</td></tr>";
+}
+function send(cmd){
+ if(!c||!c.connected){alert("Connect to EMQX first.");return}
+ if((cmd==="OPEN"||cmd==="CLOSE")&&!confirm("Send "+cmd+" command to the gate?"))return;
+ c.publish(CMD,cmd,{qos:1},e=>{$("msg").textContent=e?"Command failed: "+e.message:"Command sent: "+cmd});
+}
+function esc(s){return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;")}
+</script></body></html>
