@@ -1,43 +1,77 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NextGen RailGate HQ</title>
+<title>Railway Gate Controller</title>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
-*{box-sizing:border-box}body{margin:0;padding:20px;background:#020617;color:#f8fafc;font:15px Segoe UI,Arial,sans-serif}
-main{max-width:900px;margin:auto}.card{background:#0f172acc;border:1px solid #334155;border-radius:22px;padding:20px;margin:14px 0}
-h1{margin:0;font-size:25px}h2{font-size:17px}.row,.controls,.grid{display:grid;gap:12px}.row,.controls{grid-template-columns:1fr 1fr}.grid{grid-template-columns:repeat(4,1fr)}
-label{display:block;color:#94a3b8;font-size:12px;margin:10px 0 5px}input{width:100%;padding:11px;border-radius:9px;border:1px solid #475569;background:#020617;color:white}
-button{border:0;border-radius:11px;padding:13px;color:white;font-weight:800;cursor:pointer}.connect{background:#2563eb;width:100%;margin-top:14px}.open{background:#059669}.close{background:#dc2626}.auto{background:#334155;width:100%;margin-top:12px}
-.badge{float:right;padding:7px 11px;border-radius:20px;background:#7f1d1d;font-size:11px;font-weight:bold}.ok{background:#065f46}
-.status{text-align:center;background:#064e3b;padding:22px;border-radius:17px}.danger{background:#7f1d1d}.big{font-size:28px;font-weight:900}
-.sensor{background:#020617;padding:15px;border-radius:14px;text-align:center}.sensor small{color:#64748b;font-weight:bold;font-size:10px}.sensor b{display:block;margin-top:7px}
-.note{color:#94a3b8;font-size:12px;line-height:1.5;margin-top:9px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #1e293b;font-size:13px}th{color:#64748b;font-size:10px}
-@media(max-width:650px){.row,.controls,.grid{grid-template-columns:1fr 1fr}.row,.controls{grid-template-columns:1fr}}
+:root{color-scheme:light;--text:#26323d;--muted:#687582;--border:#dce1e5;--accent:#294f70}
+*{box-sizing:border-box}
+body{margin:0;padding:32px 20px 48px;background:#f5f6f7;color:var(--text);font:14px/1.5 Arial,Helvetica,sans-serif}
+main{max-width:860px;margin:0 auto}
+.card{margin:18px 0;padding:22px;background:#fff;border:1px solid var(--border);border-radius:6px}
+.header{display:grid;grid-template-columns:1fr auto;column-gap:16px;align-items:center;margin:0 0 24px;padding:0 0 20px;background:none;border:0;border-bottom:1px solid var(--border);border-radius:0}
+h1{grid-column:1;grid-row:1;margin:0;font-size:25px;font-weight:600;line-height:1.3;letter-spacing:-.4px}
+h2{margin:0 0 16px;font-size:16px;font-weight:600}
+.header .note{grid-column:1 / -1;margin-top:6px}
+.badge{grid-column:2;grid-row:1;padding:4px 9px;border:1px solid var(--border);border-radius:4px;background:#f0f2f4;color:#596674;font-size:11px;font-weight:600;letter-spacing:.2px}
+.badge.ok{background:#eef6f0;border-color:#c8dfce;color:#29633b}
+.row,.controls,.grid{display:grid;gap:14px}
+.row{grid-template-columns:1fr 1fr;margin-top:12px}
+.controls{grid-template-columns:1fr 1fr}
+.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:18px!important;border-top:1px solid var(--border)}
+label{display:block;margin:0 0 5px;color:#4e5d6b;font-size:12px}
+input{width:100%;min-width:0;padding:9px 10px;border:1px solid #cbd3da;border-radius:4px;background:#fff;color:var(--text);font:inherit}
+input:focus{outline:2px solid #c8d9e9;outline-offset:1px;border-color:var(--accent)}
+button{padding:10px 14px;border:1px solid #cbd3da;border-radius:4px;background:#fff;color:var(--text);font:600 13px/1.4 Arial,Helvetica,sans-serif;cursor:pointer}
+button:hover{filter:brightness(.96)}
+button:focus-visible{outline:2px solid #7194b4;outline-offset:3px}
+.connect{margin-top:16px;background:var(--accent);border-color:var(--accent);color:#fff;min-width:140px}
+.close{border-color:#d8b9b9;color:#8a3434;background:#fffafa}
+.open{border-color:#bed2c3;color:#2b6441;background:#fbfdfb}
+.auto{width:100%;margin-top:12px;background:#f4f6f8}
+.status{padding:16px 18px;border-left:3px solid #97a7b5;background:#f6f8fa}
+.status>div:first-child{color:var(--muted);font-size:11px;letter-spacing:.5px;text-transform:uppercase}
+.status.danger{border-left-color:#b64c4c;background:#fcf3f3}
+.status.danger .big{color:#8b3030}
+.big{margin-top:3px;font-size:21px;font-weight:600;line-height:1.4}
+.status .note{margin-top:3px}
+.sensor{min-width:0;padding:16px 10px 13px 0;border-bottom:1px solid var(--border)}
+.sensor small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.sensor b{display:block;margin-top:5px;font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+#msg:empty{display:none}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top;overflow-wrap:anywhere}
+th{background:#f7f8f9;color:#586675;font-size:11px;font-weight:600}
+th:first-child{width:135px}
+tbody tr:last-child td{border-bottom:0}
+.footer{margin-top:20px;color:#7c8791;font-size:11px;text-align:center}
+@media(max-width:600px){body{padding:22px 14px 32px}.card{padding:18px}.row{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:22px}.header{grid-template-columns:1fr}.badge{grid-column:1;grid-row:2;justify-self:start;margin-top:10px}.header .note{grid-row:3}th:first-child{width:100px}}
 </style></head>
 <body><main>
-<div class="card"><span id="badge" class="badge">DISCONNECTED</span><h1>✨ NextGen RailGate HQ</h1><div class="note">Online MQTT control & live monitoring</div></div>
+<div class="card header"><span id="badge" class="badge">DISCONNECTED</span><h1>Railway Gate Controller</h1><div class="note">Remote monitoring and control</div></div>
 
-<div class="card"><h2>☁️ EMQX Cloud</h2>
-<div class="row"><div><label>Broker</label><input id="broker" value="tf191af7.ala.dedicated.aws.emqxcloud.com"></div>
-<div><label>WSS Port</label><input id="port" value="8084"></div></div>
-<div class="row"><div><label>Username</label><input id="user" value="Rail-Gate"></div>
-<div><label>Password</label><input id="pass" type="password" placeholder="Your EMQX password"></div></div>
-<button class="connect" onclick="connect()">CONNECT TO LIVE SERVER</button><div id="msg" class="note"></div></div>
+<div class="card"><h2>Broker connection</h2>
+<div class="row"><div><label for="broker">Broker</label><input id="broker" value="z1116f0e.ala.us-east-1.emqxsl.com"></div>
+<div><label for="port">WSS Port</label><input id="port" value="8084"></div></div>
+<div class="row"><div><label for="user">Username</label><input id="user" value="Rail-Gate"></div>
+<div><label for="pass">Password</label><input id="pass" type="password" placeholder="Your EMQX password"></div></div>
+<button class="connect" onclick="connect()">Connect</button><div id="msg" class="note"></div></div>
 
-<div class="card"><div id="status" class="status"><div>SYSTEM STATUS</div><div id="sys" class="big">WAITING</div><div id="gate" class="note">Gate: —</div></div>
+<div class="card"><h2>Live status</h2><div id="status" class="status"><div>System state</div><div id="sys" class="big">Waiting for data</div><div id="gate" class="note">Gate: —</div></div>
 <div class="grid" style="margin-top:14px">
-<div class="sensor"><small>US DISTANCE</small><b id="dist">—</b></div><div class="sensor"><small>LDR</small><b id="ldr">—</b></div>
-<div class="sensor"><small>VIBRATION</small><b id="vib">—</b></div><div class="sensor"><small>SOUND</small><b id="snd">—</b></div>
-<div class="sensor"><small>TOTAL TRAINS</small><b id="trains">—</b></div><div class="sensor"><small>MODE</small><b id="mode">—</b></div>
-<div class="sensor"><small>ESP32</small><b id="online">—</b></div><div class="sensor"><small>UPDATED</small><b id="updated">—</b></div>
+<div class="sensor"><small>Distance</small><b id="dist">—</b></div><div class="sensor"><small>Entry LDR</small><b id="ldr">—</b></div>
+<div class="sensor"><small>Vibration</small><b id="vib">—</b></div><div class="sensor"><small>Sound</small><b id="snd">—</b></div>
+<div class="sensor"><small>Train count</small><b id="trains">—</b></div><div class="sensor"><small>Mode</small><b id="mode">—</b></div>
+<div class="sensor"><small>ESP32</small><b id="online">—</b></div><div class="sensor"><small>Last update</small><b id="updated">—</b></div>
 </div></div>
 
-<div class="card"><h2>🎛️ Remote Gate Control</h2><div class="controls">
-<button class="close" onclick="send('CLOSE')">🛑 FORCE CLOSE</button><button class="open" onclick="send('OPEN')">🟢 FORCE OPEN</button></div>
-<button class="auto" onclick="send('AUTO')">🔵 RESUME AUTO (SENSORS)</button>
-<div class="note">Commands are published to <b>railgate/cmd</b>.</div></div>
+<div class="card"><h2>Gate control</h2><div class="controls">
+<button class="close" onclick="send('CLOSE')">Close gate</button><button class="open" onclick="send('OPEN')">Open gate</button></div>
+<button class="auto" onclick="send('AUTO')">Resume automatic mode</button>
+<div class="note">Manual control overrides automatic sensor operation. Select Resume automatic mode to return to sensor control.</div></div>
 
-<div class="card"><h2>📜 Live Event Logs</h2><table><thead><tr><th>TIME</th><th>ACTIVITY</th></tr></thead><tbody id="logs"><tr><td colspan="2">Waiting for ESP32...</td></tr></tbody></table></div>
+<div class="card"><h2>Event log</h2><table><thead><tr><th>Time</th><th>Activity</th></tr></thead><tbody id="logs"><tr><td colspan="2">Waiting for ESP32...</td></tr></tbody></table></div>
+<div class="footer">Railway gate control project · ESP32 / MQTT</div>
 </main>
 <script>
 let c=null;
@@ -64,10 +98,10 @@ function update(d){
  $("vib").textContent=d.s_vib==1?"HIGH":"LOW";$("snd").textContent=d.s_snd==1?"HIGH":"LOW";
  $("trains").textContent=d.total_trains??"0";$("mode").textContent=d.manual??"—";$("updated").textContent=new Date().toLocaleTimeString();
  const danger=d.manual==="CLOSE"||(d.manual==="AUTO"&&d.status==="DANGER");$("status").className="status"+(danger?" danger":"");
- if(d.manual==="CLOSE"){$("sys").textContent="🛑 MANUAL CLOSED";$("gate").textContent="Gate: CLOSED"}
- else if(d.manual==="OPEN"){$("sys").textContent="🟢 MANUAL OPENED";$("gate").textContent="Gate: OPEN"}
- else if(d.status==="DANGER"){$("sys").textContent="⚠️ TRAIN IS COMING";$("gate").textContent="Gate: CLOSED (AUTO)"}
- else{$("sys").textContent="✅ TRACK IS CLEAR";$("gate").textContent="Gate: OPEN (AUTO)"}
+ if(d.manual==="CLOSE"){$("sys").textContent="Manual close";$("gate").textContent="Gate: CLOSED"}
+ else if(d.manual==="OPEN"){$("sys").textContent="Manual open";$("gate").textContent="Gate: OPEN"}
+ else if(d.status==="DANGER"){$("sys").textContent="Train detected";$("gate").textContent="Gate: CLOSED (AUTO)"}
+ else{$("sys").textContent="Track clear";$("gate").textContent="Gate: OPEN (AUTO)"}
  if(Array.isArray(d.logs))$("logs").innerHTML=d.logs.filter(x=>x.act).map(x=>`<tr><td>${esc(x.time)}</td><td>${esc(x.act)}</td></tr>`).join("")||"<tr><td colspan=2>No events</td></tr>";
 }
 function send(cmd){
